@@ -3,13 +3,15 @@
 
 **Tutorial:**
 
-1. Go to desktop
-2. Create text document
-3. rename extension to .html
-4. Double click
-5. Opens a webpage
-6. Paste mainunblockers content with import
-7. enjoy! :)
+1. Go to your desktop
+2. Create a text file
+3. Open the text file
+4. Paste the code from Tool.html into the text file
+5. Save the file
+6. rename extension to .html
+7. Double click
+8. Paste mainunblockers content with import
+9. enjoy! :)
 
 **Tips:**
 - ctrl + z undoes up to 3 actions

@@ -1,2 +1,365 @@
 # ByePassHub-SortingTool
-This is a sorting took for the ByePassHub to quickly sort links with an UI
+### This is v3.0.1. Please report bugs :)
+
+**Tutorial:**
+
+1. Go to desktop
+2. Create text document
+3. rename extension to .html
+4. Double click
+5. Opens a webpage
+6. Paste mainunblockers content with import
+7. enjoy! :)
+
+**Tips:**
+- ctrl + z undoes up to 3 actions
+- Press little notebook icon to edit short discription
+
+**Known issues:**
+- The short description is a little bugged. (v.0.1.0 Problem)
+- Doing any action will make you jump up in the list. (v.0.1.0 - v.2.0.0 problem)
+- Hyperlinks are not working (in the contents) (v.0.1.0 - v3.0.0 problem)
+
+**Version update history (1 version kept in this comment only. See "Edits" at the top for prev. versions.):**
+
+- V.0.1.0: Inital beta release.
+- V.0.2.0: Updated beta: New design, smaller code (by like 500 lines) and The Short descriptions are now being showed as drag and drop blocks!
+- V.1.0.0: After finding no bugs, sorting around 150 links of the link dump, accidently refreshing the page by turning off adguard and with that deleting my progress of sorting 150 links its here: V1! V1 has a ton of features such as Auto save, movable links and groups as well as a new "Add link" option which has the power to add (not import) links which can bulk add a bunch of links from a random list f.E.! I tested it, didnt find any bugs. Get goin' -Charged :P
+- V.2.0.0: Added double link detection (mainly if you paste large lists, it will auto delete. Implemented the selectable statuses (varying, flourishing etc.)
+- V.2.0.1: Fixed jumping up issue
+- V.3.0.0: Date card and whole category select
+- V.3.0.1: Fixed hyperlinks in contents
+
+**Code**:
+
+
+```
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MD Link Manager</title>
+    <style>
+        :root {
+            --bg: #f3f4f6;
+            --surface: #ffffff;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --text: #1f2937;
+            --text-light: #6b7280;
+            --border: #e5e7eb;
+            --column-bg: #e5e7eb;
+            --radius: 12px;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --danger: #ef4444;
+            --danger-hover: #fee2e2;
+            --comment-card: #f9fafb;
+            --date-card: #fdf4ff;
+            --date-border: #d946ef;
+        }
+
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+        body { margin: 0; background-color: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+        header { background-color: var(--surface); padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow); z-index: 10; }
+
+        .controls { display: flex; gap: 0.8rem; align-items: center; }
+
+        button { background-color: var(--primary); color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: 0.2s; }
+        button:hover { background-color: var(--primary-hover); }
+        button.secondary { background-color: transparent; color: var(--primary); border: 2px solid var(--primary); }
+        button.secondary:hover { background-color: #eff6ff; }
+        button.danger-outline { background-color: transparent; color: var(--danger); border: 2px solid var(--danger); }
+
+        .board { display: flex; flex: 1; padding: 1.5rem; gap: 1.5rem; overflow-x: auto; align-items: flex-start; }
+
+        .column { background-color: var(--column-bg); min-width: 350px; width: 350px; max-height: 100%; border-radius: var(--radius); display: flex; flex-direction: column; }
+
+        .column-header { padding: 1rem; background-color: #d1d5db; border-radius: var(--radius) var(--radius) 0 0; display: flex; flex-direction: column; gap: 0.5rem; }
+        .column-header-top { display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 0.5rem; }
+        .column-title { font-weight: bold; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        .header-move-btns { display: flex; gap: 2px; align-items: center; }
+        .cat-checkbox { display: none; margin-right: 4px; cursor: pointer; width: 16px; height: 16px; accent-color: var(--primary); }
+        .select-mode-active .cat-checkbox { display: inline-block; }
+        
+        .header-action-btns { display: flex; gap: 4px; }
+
+        .status-select { width: 100%; font-size: 0.85rem; padding: 0.3rem; border-radius: 6px; border: 1px solid var(--border); background-color: var(--surface); color: var(--text); cursor: pointer; }
+
+        .card-list { padding: 1rem; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 0.8rem; min-height: 100px; }
+
+        .card { background-color: var(--surface); padding: 1rem; border-radius: 8px; box-shadow: var(--shadow); cursor: grab; position: relative; border: 2px solid transparent; }
+        .card.comment-type { background-color: var(--comment-card); border-left: 4px solid #9ca3af; }
+        .card.date-type { background-color: var(--date-card); border-left: 4px solid var(--date-border); }
+        .card.selected { border-color: var(--primary); background-color: #eff6ff; }
+
+        .card-content { font-size: 0.95rem; word-break: break-word; margin-bottom: 0.5rem; }
+        .card.comment-type .card-content { color: var(--text-light); font-style: italic; }
+        .card.date-type .card-content { color: var(--date-border); font-weight: bold; display: flex; align-items: center; gap: 0.4rem; }
+
+        .card-url { color: #0369a1; font-weight: 500; text-decoration: none; word-break: break-all; }
+        .card-url:hover { text-decoration: underline; }
+
+        .card-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; border-top: 1px solid #f3f4f6; padding-top: 0.5rem; gap: 4px; }
+        .card-actions select { font-size: 0.8rem; padding: 0.2rem; border-radius: 4px; border: 1px solid var(--border); width: 35%; flex-shrink: 1; }
+        .card-action-btns { display: flex; gap: 2px; }
+
+        .btn-icon { background: none; border: none; color: var(--text-light); cursor: pointer; padding: 0.2rem; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+        .btn-icon:hover { background-color: #9ca3af; color: white; }
+
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 100; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: var(--surface); padding: 2rem; border-radius: var(--radius); width: 90%; max-width: 600px; display: flex; flex-direction: column; gap: 1rem; }
+
+        .bulk-actions { display: none; gap: 0.5rem; background: #eff6ff; padding: 0.5rem; border-radius: 8px; border: 1px solid #bfdbfe; }
+        .bulk-actions.active { display: flex; align-items: center; }
+
+        .card-checkbox { position: absolute; top: 0.5rem; right: 0.5rem; display: none; width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
+        .select-mode-active .card-checkbox { display: block; }
+
+        .tabs { display: flex; gap: 1rem; border-bottom: 2px solid var(--border); margin-bottom: 1rem; }
+        .tab-btn { background: none; color: var(--text-light); border: none; padding: 0.5rem 1rem; font-weight: 600; border-bottom: 3px solid transparent; border-radius: 0; }
+        .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+        .tab-content { display: none; flex-direction: column; gap: 1rem; }
+        .tab-content.active { display: flex; }
+        textarea { width: 100%; height: 250px; padding: 1rem; border: 1px solid var(--border); border-radius: 8px; font-family: monospace; font-size: 0.9rem; resize: vertical; }
+        input[type="text"], input[type="date"] { width: 100%; padding: 0.8rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>MD Link Manager</h1>
+    <div class="controls">
+        <span id="saveStatus" style="font-size: 0.8rem; color: var(--text-light); margin-right: 10px;"></span>
+        <div class="bulk-actions" id="bulkActions">
+            <select id="bulkCategorySelect"></select>
+            <button onclick="moveSelectedCards()">Move</button>
+            <button onclick="deleteSelectedCards()" class="danger-outline">Del</button>
+        </div>
+        <button id="btnToggleSelect" class="secondary">Select Mode: Off</button>
+        <button onclick="openModal('modalGroup')" class="secondary">New Group</button>
+        <button onclick="openModal('modalAddLink')">+ Add Link</button>
+        <button onclick="openModal('modalInput')">+ Import</button>
+        <button onclick="generateExport()">Export</button>
+    </div>
+</header>
+
+<main class="board" id="board"></main>
+
+<div class="modal-overlay" id="modalInput">
+    <div class="modal">
+        <h2>Import Content</h2>
+        
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('md')">.md Import</button>
+            <button class="tab-btn" onclick="switchTab('custom')">Group / Link Import</button>
+        </div>
+        
+        <div id="tab-md" class="tab-content active">
+            <p style="margin:0; font-size:0.9rem; color:gray;">Paste your full standard .md file here. It ignores everything above the "website title" header automatically.</p>
+            <textarea id="mdInput" placeholder="### Category Name&#10;> Some description comment&#10;**📅 2026-04-03**&#10;https://example.com <br>"></textarea>
+        </div>
+
+        <div id="tab-custom" class="tab-content">
+            <p style="margin:0; font-size:0.9rem; color:gray;">Strict formatting required:<br><b>* Category Name</b> for groups.<br><b>&gt; Comment text</b> for text cards/descriptions.<br><b>https://...</b> for links.</p>
+            <textarea id="customInput" placeholder="* My Group&#10;> This is a text card for the group&#10;https://example.com&#10;&#10;* Another Group&#10;https://test.com"></textarea>
+        </div>
+
+        <div style="display:flex; justify-content: flex-end; gap: 1rem;">
+            <button class="secondary" onclick="closeModal('modalInput')">Cancel</button>
+            <button onclick="processInput()">Import</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modalAddLink">
+    <div class="modal">
+        <h2>Add Link(s)</h2>
+        <p style="margin:0; font-size:0.9rem; color:gray;">Paste one or multiple links (separated by a new line). They will be added under the current Date in "Unsorted Links".</p>
+        <textarea id="addLinkInput" placeholder="https://example.com&#10;https://anotherexample.com" style="height: 150px;"></textarea>
+        <div style="display:flex; justify-content: flex-end; gap: 1rem;">
+            <button class="secondary" onclick="closeModal('modalAddLink')">Cancel</button>
+            <button onclick="processAddLinks()">Add Links</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modalGroup">
+    <div class="modal">
+        <h2>Create New Group</h2>
+        <input type="text" id="groupInput" placeholder="Group Name">
+        <div style="display:flex; justify-content: flex-end; gap: 1rem;">
+            <button class="secondary" onclick="closeModal('modalGroup')">Cancel</button>
+            <button onclick="createGroup()">Create</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modalEditItem">
+    <div class="modal">
+        <h2 id="editItemTitle">Edit Item</h2>
+        <textarea id="editItemInput" style="height: 100px;"></textarea>
+        <input type="date" id="editDateInput" style="display:none;">
+        <div style="display:flex; justify-content: flex-end; gap: 1rem;">
+            <button class="secondary" onclick="closeModal('modalEditItem')">Cancel</button>
+            <button onclick="saveEditItem()">Save</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modalExport">
+    <div class="modal">
+        <h2>Exported Markdown</h2>
+        <textarea id="exportOutput" readonly style="height: 350px;"></textarea>
+        <div style="display:flex; justify-content: flex-end; gap: 1rem;">
+            <button class="secondary" onclick="closeModal('modalExport')">Close</button>
+            <button onclick="copyExport()">Copy to Clipboard</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let categories = ['Uncategorized'];
+    let items = []; // Combined list of {id, type: 'link'|'comment'|'date', content, category, selected}
+    let categoryStatus = {}; 
+    let isSelectMode = false;
+    let currentEditId = null;
+    let historyStack = [];
+    let activeTab = 'md';
+
+    const baseHeaderInfo = `# ByePassHub > Main Links | updated March 28\n## If you like this list, make sure to star this repository!\nThis is a collection of links of proxies, games, AI, and apps. <br>\n\n---\n\n**Exploits, Bypasses, Bookmarklets:** Go [here](https://github.com/wea-f/ByePassHub/tree/main/Exploits) or go to the Exploits folder. <br>\n**Main Games:** Go [here](https://github.com/wea-f/ByePassHub/blob/main/Games.md) <br>\n**Unblockers:** Go [here](https://github.com/wea-f/ByePassHub/blob/main/mainUnblockers.md) or go to the mainUnblockers.md file <br>\n**Shortcuts:** Go [here](https://github.com/wea-f/ByePassHub/blob/main/Shortcut%20Programs.md) or go to the Shortcut Programs.md file <br>\n**Kahoot, Gimkit, Blooket (and more) Cheats:** Go [here](https://github.com/wea-f/ByePassHub//blob/main/Cheats.md) or go to the Cheats.md file. <br>\n**Making your own unblocker link:** Go [here](https://github.com/wea-f/ByePassHub/blob/main/MakeYourOwnLink.md) or go to the MakeYourOwnLink.md file. <br>\n**Main Hub:** Go [here](https://github.com/wea-f/ByePassHub/blob/main/README.md) or go to the main README.md file <br>\n\n---\n\n  This list IS **FREE FROM** github.io, vercel.app, glitch.me, and onrender.com links. <br>\n  \n  **PRO TIP:** Use multiple url openers, like https://www.openmultipleurl.com/, https://www.openallurls.com/, and https://www.websiteplanet.com/webtools/multiple-url/, to find unblocked links faster! <br>\n  \n<br> <br>\n\n**Announcements:**\n- March 28 - MOST UPDATED LINKS ARE FOUND [HERE](#link-dump) FROM NOW ON!!\n- Jan 4 - Happy New Year, found 100+ links, go [here](#link-dump), or scroll down until you see "Link Dump."\n- November 7 - Rechecked ALL Links, added more (new Ghosted and Vapor Sites!) too!!\n- August 17 - Added new links and removed broken ones (issues [#96](https://github.com/wea-f/ByePassHub/issues/96), [#101](https://github.com/wea-f/ByePassHub/issues/101), and [#102](https://github.com/wea-f/ByePassHub/issues/102)) - Also added more links!\n- June 8 - Fixed some non working proxies (some have shutdown for the summer!)\n- 5/4 - [BYEPASSHUB GOOGLE DOC LAUNCHED (v2)](https://docs.google.com/document/d/1BC-_DkqMcnJDN2hQWWZCjB-Gp-U2CVtznrVOIP-mRv4/edit?usp=sharing)\n- 2/23 - Thanks for 200 stars on this repository! I've added 300+ links and 2 new sites! (Check the updates /changes/log).\n\n## Updates/Changes:\n\n### January 4 & 19 & 26, 2026 - Added 400+ Links, includes 15+ NEW sites!!\n- Link Dump: Scroll down to [here](#link-dump)\n  - Consists of Selenite, gn math, some shadow, as well as some new sites that I found. \n\n<br>`;
+
+    function createId() { return 'id_' + Math.random().toString(36).substr(2, 9); }
+    
+    // GitHub-kompatibler Slug-Generator (für funktionierende Inhaltsverzeichnis-Links)
+    function createSlug(text) { 
+        return text.trim().toLowerCase()
+            .replace(/[^\p{L}\p{N}\s-]/gu, '') // Sonderzeichen löschen (behält Buchstaben, Zahlen, Leerzeichen, Bindestriche)
+            .replace(/ /g, '-'); // Jedes Leerzeichen strikt in einen Bindestrich verwandeln
+    }
+
+    function normalizeUrl(url) { return url.trim().replace(/\/$/, ''); }
+    function isDuplicateLink(url) {
+        const norm = normalizeUrl(url);
+        return items.some(i => i.type === 'link' && normalizeUrl(i.content) === norm);
+    }
+
+    function loadFromLocalStorage() {
+        const data = localStorage.getItem('mdLinkManager_data');
+        if (data) {
+            try {
+                const parsed = JSON.parse(data);
+                if (parsed.categories && parsed.categories.length > 0) categories = parsed.categories;
+                if (parsed.items) items = parsed.items;
+                if (parsed.categoryStatus) categoryStatus = parsed.categoryStatus;
+            } catch(e) { console.error("Could not load temp save.", e); }
+        }
+    }
+
+    function saveToLocalStorage() {
+        localStorage.setItem('mdLinkManager_data', JSON.stringify({ categories, items, categoryStatus }));
+        const status = document.getElementById('saveStatus');
+        status.innerText = "Auto-saved";
+        setTimeout(() => status.innerText = "", 2000);
+    }
+
+    function saveState() {
+        historyStack.push(JSON.stringify({items, categories, categoryStatus}));
+        if (historyStack.length > 5) historyStack.shift(); 
+    }
+
+    function undo() {
+        if (historyStack.length > 0) {
+            const state = JSON.parse(historyStack.pop());
+            items = state.items;
+            categories = state.categories;
+            categoryStatus = state.categoryStatus || {};
+            renderBoard();
+        }
+    }
+
+    function moveCatLeft(cat) {
+        saveState();
+        const idx = categories.indexOf(cat);
+        if (idx > 0) {
+            const temp = categories[idx];
+            categories[idx] = categories[idx - 1];
+            categories[idx - 1] = temp;
+            renderBoard();
+        }
+    }
+
+    function moveCatRight(cat) {
+        saveState();
+        const idx = categories.indexOf(cat);
+        if (idx > -1 && idx < categories.length - 1) {
+            const temp = categories[idx];
+            categories[idx] = categories[idx + 1];
+            categories[idx + 1] = temp;
+            renderBoard();
+        }
+    }
+
+    function moveCardUp(id) {
+        saveState();
+        const idx = items.findIndex(i => i.id === id);
+        if (idx <= 0) return;
+        const cat = items[idx].category;
+        
+        let prevIdx = -1;
+        for (let i = idx - 1; i >= 0; i--) {
+            if (items[i].category === cat) { prevIdx = i; break; }
+        }
+        
+        if (prevIdx !== -1) {
+            const temp = items[idx];
+            items[idx] = items[prevIdx];
+            items[prevIdx] = temp;
+            renderBoard();
+        }
+    }
+
+    function moveCardDown(id) {
+        saveState();
+        const idx = items.findIndex(i => i.id === id);
+        if (idx === -1 || idx === items.length - 1) return;
+        const cat = items[idx].category;
+        
+        let nextIdx = -1;
+        for (let i = idx + 1; i < items.length; i++) {
+            if (items[i].category === cat) { nextIdx = i; break; }
+        }
+        
+        if (nextIdx !== -1) {
+            const temp = items[idx];
+            items[idx] = items[nextIdx];
+            items[nextIdx] = temp;
+            renderBoard();
+        }
+    }
+
+    function updateCategoryStatus(cat, value) {
+        saveState();
+        if (value) categoryStatus[cat] = value;
+        else delete categoryStatus[cat];
+        saveToLocalStorage();
+    }
+
+    function toggleCategorySelect(cat, isChecked) {
+        saveState();
+        items.forEach(i => {
+            if(i.category === cat) i.selected = isChecked;
+        });
+        renderBoard();
+    }
+
+    document.addEventListener('keydown', e => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+            if (document.activeElement.tagName !== 'TEXTAREA' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') { 
+                e.preventDefault(); 
+                undo(); 
+       

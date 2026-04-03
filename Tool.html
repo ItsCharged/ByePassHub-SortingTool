@@ -326,5 +326,462 @@
             if (document.activeElement.tagName !== 'TEXTAREA' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') { 
                 e.preventDefault(); 
                 undo(); 
+            }
+        }
+    });
 
-  
+    function switchTab(tabId) {
+        activeTab = tabId;
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        event.target.classList.add('active');
+        document.getElementById('tab-' + tabId).classList.add('active');
+    }
+
+    function renderBoard() {
+        const board = document.getElementById('board');
+        
+        // SAVE CURRENT SCROLL POSITIONS
+        const boardScrollLeft = board.scrollLeft;
+        const columnScrolls = {};
+        board.querySelectorAll('.card-list').forEach(list => {
+            columnScrolls[list.dataset.category] = list.scrollTop;
+        });
+
+        board.innerHTML = '';
+        if(isSelectMode) board.classList.add('select-mode-active');
+        else board.classList.remove('select-mode-active');
+
+        categories.forEach(cat => {
+            const col = document.createElement('div');
+            col.className = 'column';
+            
+            const currentStatus = categoryStatus[cat] || '';
+            const catItems = items.filter(i => i.category === cat);
+            const allSelected = catItems.length > 0 && catItems.every(i => i.selected);
+            
+            col.innerHTML = `
+                <div class="column-header">
+                    <div class="column-header-top">
+                        <div class="header-move-btns">
+                            <input type="checkbox" class="cat-checkbox" title="Select all in ${cat}" ${allSelected ? 'checked' : ''} onchange="toggleCategorySelect('${cat}', this.checked)">
+                            <button class="btn-icon" style="font-size: 14px;" onclick="moveCatLeft('${cat}')" title="Move Left">◀</button>
+                            <button class="btn-icon" style="font-size: 14px;" onclick="moveCatRight('${cat}')" title="Move Right">▶</button>
+                        </div>
+                        <span class="column-title" title="${cat}">${cat}</span>
+                        <div class="header-action-btns">
+                            <button style="padding: 4px 8px; font-size: 11px; background: #8b5cf6;" onclick="addDateItem('${cat}')" title="Add Date Card">+ Date</button>
+                            <button style="padding: 4px 8px; font-size: 11px; background: #6b7280;" onclick="addTextItem('${cat}')" title="Add Text Note">+ Text</button>
+                            <button style="padding: 4px 8px; font-size: 11px; background: var(--danger);" onclick="deleteGroup('${cat}')">🗑️</button>
+                        </div>
+                    </div>
+                    <select class="status-select" onchange="updateCategoryStatus('${cat}', this.value)">
+                        <option value="">-- No Status --</option>
+                        <option value="Flourishing 💯" ${currentStatus === 'Flourishing 💯' ? 'selected' : ''}>Flourishing 💯</option>
+                        <option value="Stable ✅" ${currentStatus === 'Stable ✅' ? 'selected' : ''}>Stable ✅</option>
+                        <option value="Varying 😬" ${currentStatus === 'Varying 😬' ? 'selected' : ''}>Varying 😬</option>
+                        <option value="Ghosted 🚫" ${currentStatus === 'Ghosted 🚫' ? 'selected' : ''}>Ghosted 🚫</option>
+                    </select>
+                </div>
+                <div class="card-list" data-category="${cat}" ondragover="event.preventDefault()" ondrop="handleDrop(event, '${cat}')"></div>
+            `;
+            
+            const list = col.querySelector('.card-list');
+            catItems.forEach(item => {
+                const card = document.createElement('div');
+                card.className = `card ${item.type === 'comment' ? 'comment-type' : ''} ${item.type === 'date' ? 'date-type' : ''} ${item.selected ? 'selected' : ''}`;
+                card.draggable = !isSelectMode;
+                card.id = item.id;
+                card.ondragstart = e => { e.dataTransfer.setData('text', item.id); };
+
+                let contentHtml = '';
+                if (item.type === 'link') {
+                    contentHtml = `<a class="card-url" href="${item.content}" target="_blank">${item.content}</a>`;
+                } else if (item.type === 'date') {
+                    contentHtml = `<div class="card-content">📅 ${item.content}</div>`;
+                } else {
+                    contentHtml = `<div class="card-content">${item.content}</div>`;
+                }
+
+                card.innerHTML = `
+                    <input type="checkbox" class="card-checkbox" ${item.selected ? 'checked' : ''} onchange="toggleSelect('${item.id}')">
+                    ${contentHtml}
+                    <div class="card-actions">
+                        <select onchange="moveItem('${item.id}', this.value)">
+                            ${categories.map(c => `<option value="${c}" ${c === cat ? 'selected' : ''}>${c}</option>`).join('')}
+                        </select>
+                        <div class="card-action-btns">
+                            <button class="btn-icon" title="Move Up" onclick="moveCardUp('${item.id}')">🔼</button>
+                            <button class="btn-icon" title="Move Down" onclick="moveCardDown('${item.id}')">🔽</button>
+                            <button class="btn-icon" title="Edit" onclick="editItem('${item.id}')">📝</button>
+                            <button class="btn-icon" title="Delete" style="color:var(--danger);" onclick="deleteItem('${item.id}')">🗑️</button>
+                        </div>
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+            board.appendChild(col);
+        });
+        
+        updateBulkDropdown();
+        saveToLocalStorage();
+
+        // RESTORE SCROLL POSITIONS
+        board.scrollLeft = boardScrollLeft;
+        board.querySelectorAll('.card-list').forEach(list => {
+            const cat = list.dataset.category;
+            if (columnScrolls[cat] !== undefined) {
+                list.scrollTop = columnScrolls[cat];
+            }
+        });
+    }
+
+    function handleDrop(e, cat) {
+        const id = e.dataTransfer.getData('text');
+        moveItem(id, cat);
+    }
+
+    function moveItem(id, newCat) {
+        saveState();
+        const idx = items.findIndex(i => i.id === id);
+        if(idx > -1 && items[idx].category !== newCat) { 
+            const item = items.splice(idx, 1)[0];
+            item.category = newCat; 
+            items.push(item);
+            renderBoard(); 
+        }
+    }
+
+    function editItem(id) {
+        const item = items.find(i => i.id === id);
+        currentEditId = id;
+        
+        if (item.type === 'date') {
+            document.getElementById('editItemTitle').innerText = 'Edit Date';
+            document.getElementById('editItemInput').style.display = 'none';
+            document.getElementById('editDateInput').style.display = 'block';
+            document.getElementById('editDateInput').value = item.content;
+        } else {
+            document.getElementById('editItemTitle').innerText = item.type === 'link' ? 'Edit Link URL' : 'Edit Text Card';
+            document.getElementById('editItemInput').style.display = 'block';
+            document.getElementById('editDateInput').style.display = 'none';
+            document.getElementById('editItemInput').value = item.content;
+        }
+        
+        openModal('modalEditItem');
+    }
+
+    function saveEditItem() {
+        saveState();
+        const item = items.find(i => i.id === currentEditId);
+        
+        let newContent;
+        if (item.type === 'date') {
+            newContent = document.getElementById('editDateInput').value;
+            if(!newContent) newContent = new Date().toISOString().split('T')[0]; // fallback
+        } else {
+            newContent = document.getElementById('editItemInput').value.trim();
+        }
+        
+        if (item.type === 'link' && newContent !== item.content && isDuplicateLink(newContent)) {
+            alert("This link already exists elsewhere! Changes not saved.");
+            return;
+        }
+
+        item.content = newContent;
+        closeModal('modalEditItem');
+        renderBoard();
+    }
+
+    function addTextItem(cat) {
+        saveState();
+        items.push({id: createId(), type: 'comment', content: 'New Text Note', category: cat, selected: false});
+        renderBoard();
+    }
+
+    function addDateItem(cat) {
+        saveState();
+        const today = new Date().toISOString().split('T')[0];
+        items.push({id: createId(), type: 'date', content: today, category: cat, selected: false});
+        renderBoard();
+    }
+
+    function deleteItem(id) {
+        saveState();
+        items = items.filter(i => i.id !== id);
+        renderBoard();
+    }
+
+    function deleteGroup(cat) {
+        if(confirm(`Are you sure you want to delete the entire group "${cat}" and all its contents?`)) {
+            saveState();
+            items = items.filter(i => i.category !== cat);
+            categories = categories.filter(c => c !== cat);
+            delete categoryStatus[cat];
+            
+            if(categories.length === 0) categories.push('Uncategorized');
+            renderBoard();
+        }
+    }
+
+    function processAddLinks() {
+        const inputStr = document.getElementById('addLinkInput').value;
+        if (!inputStr.trim()) return;
+
+        saveState();
+
+        const targetCategory = 'Unsorted Links';
+        if (!categories.includes(targetCategory)) {
+            categories.push(targetCategory);
+        }
+
+        const lines = inputStr.split('\n');
+        const today = new Date().toISOString().split('T')[0];
+        
+        let firstIdx = items.findIndex(i => i.category === targetCategory);
+        if (firstIdx === -1) firstIdx = items.length;
+
+        let hasTodayDate = (items[firstIdx] && items[firstIdx].category === targetCategory && items[firstIdx].type === 'date' && items[firstIdx].content === today);
+
+        let addedCount = 0;
+        let skippedCount = 0;
+
+        // Auto insert Date card at the top if there are valid links
+        if (!hasTodayDate && lines.some(l => l.trim() !== '')) {
+            items.splice(firstIdx, 0, { id: createId(), type: 'date', content: today, category: targetCategory, selected: false });
+            firstIdx++; 
+        } else if (hasTodayDate) {
+            firstIdx++; // skip existing date to add links directly below it
+        }
+
+        let currentInsertIdx = firstIdx;
+
+        lines.forEach(line => {
+            const url = line.trim();
+            if (url) {
+                const urlMatch = url.match(/(https?:\/\/[^\s<"'\)]+)/);
+                const finalUrl = urlMatch ? urlMatch[1] : url; 
+
+                if (!isDuplicateLink(finalUrl)) {
+                    items.splice(currentInsertIdx, 0, { id: createId(), type: 'link', content: finalUrl, category: targetCategory, selected: false });
+                    currentInsertIdx++;
+                    addedCount++;
+                } else {
+                    skippedCount++;
+                }
+            }
+        });
+
+        if (addedCount > 0 || skippedCount > 0) {
+            renderBoard();
+            if (skippedCount > 0) {
+                alert(`Added ${addedCount} links. Skipped ${skippedCount} duplicate links.`);
+            }
+        }
+
+        document.getElementById('addLinkInput').value = '';
+        closeModal('modalAddLink');
+    }
+
+    function processInput() {
+        saveState();
+        items = []; 
+        categories = [];
+        categoryStatus = {};
+        let currentCat = 'Uncategorized';
+        
+        if (activeTab === 'md') {
+            const text = document.getElementById('mdInput').value;
+            const lines = text.split('\n');
+            let startParsing = false;
+            let inCommentBlock = false;
+
+            lines.forEach(line => {
+                const trimmed = line.trim();
+                
+                if(trimmed.includes('## website title | what it contains')) { startParsing = true; return; }
+                if(!startParsing) return;
+
+                if (trimmed.includes('<!--')) inCommentBlock = true;
+                if (trimmed.includes('-->')) { inCommentBlock = false; return; }
+                if (inCommentBlock) return;
+
+                const statusMatch = trimmed.match(/^####\s+Status:\s*(.*)/i);
+                if(statusMatch) {
+                    categoryStatus[currentCat] = statusMatch[1].trim();
+                    return; 
+                }
+
+                const dateMatch = trimmed.match(/^\*\*📅\s+(.*)\*\*$/);
+                if(dateMatch) {
+                    if(!categories.includes(currentCat)) categories.push(currentCat);
+                    items.push({ id: createId(), type: 'date', content: dateMatch[1].trim(), category: currentCat, selected: false });
+                    return;
+                }
+
+                const hMatch = trimmed.match(/^###\s+(.*)/);
+                if(hMatch) {
+                    currentCat = hMatch[1].replace(/<[^>]*>?/gm, '').trim();
+                    if(!categories.includes(currentCat)) categories.push(currentCat);
+                    return;
+                }
+
+                const urlMatch = line.match(/(https?:\/\/[^\s<"'\)]+)/);
+                if(urlMatch) {
+                    if(!categories.includes(currentCat)) categories.push(currentCat);
+                    if(!isDuplicateLink(urlMatch[1])) {
+                        items.push({id: createId(), type: 'link', content: urlMatch[1], category: currentCat, selected: false});
+                    }
+                } else {
+                    const lowerLine = trimmed.toLowerCase();
+                    if (
+                        trimmed === '' || trimmed === '---' || trimmed === '🔼' || trimmed === '<br>' ||
+                        lowerLine.includes('back to [top]') || lowerLine.includes('end of link dump') ||
+                        lowerLine.includes('note: click "skip intro"')
+                    ) {
+                        return;
+                    }
+
+                    let cleanedComment = trimmed.replace(/<br>/gi, '').trim();
+                    if (cleanedComment) {
+                        if (!categories.includes(currentCat)) categories.push(currentCat);
+                        items.push({ id: createId(), type: 'comment', content: cleanedComment, category: currentCat, selected: false });
+                    }
+                }
+            });
+        } else {
+            const text = document.getElementById('customInput').value;
+            const lines = text.split('\n');
+
+            lines.forEach(line => {
+                const trimmedLine = line.trim();
+                if (trimmedLine === '') return;
+                
+                if (trimmedLine.startsWith('* ')) {
+                    currentCat = trimmedLine.substring(2).trim();
+                    if (!categories.includes(currentCat)) categories.push(currentCat);
+                } else if (trimmedLine.startsWith('>')) {
+                    if (!categories.includes(currentCat)) categories.push(currentCat);
+                    let cleanedComment = trimmedLine.substring(1).trim(); 
+                    if (cleanedComment) {
+                        items.push({ id: createId(), type: 'comment', content: cleanedComment, category: currentCat, selected: false });
+                    }
+                } else {
+                    const urlMatch = trimmedLine.match(/(https?:\/\/[^\s<"'\)]+)/);
+                    if (urlMatch) {
+                        if (!categories.includes(currentCat)) categories.push(currentCat);
+                        if (!isDuplicateLink(urlMatch[1])) {
+                            items.push({ id: createId(), type: 'link', content: urlMatch[1], category: currentCat, selected: false });
+                        }
+                    }
+                }
+            });
+        }
+
+        if(categories.length === 0) categories.push('Uncategorized');
+        closeModal('modalInput');
+        renderBoard();
+    }
+
+    function generateExport() {
+        let out = baseHeaderInfo + '\n\n## Shortcuts & Table of Contents:\n';
+        const activeCats = categories.filter(c => items.some(i => i.category === c));
+        
+        activeCats.forEach(c => {
+            let statusText = categoryStatus[c] ? ` | Status: ${categoryStatus[c]}` : '';
+            out += `- [${c}](#${createSlug(c)})${statusText}\n`;
+        });
+        
+        out += `\n---\n\n## website title | what it contains | any note if needed\n\n`;
+
+        activeCats.forEach(c => {
+            out += `### ${c}\n`;
+            
+            if (categoryStatus[c]) {
+                out += `#### Status: ${categoryStatus[c]}\n`;
+            }
+
+            items.filter(i => i.category === c).forEach(item => {
+                if(item.type === 'link') {
+                    out += `${item.content} <br>\n`;
+                } else if(item.type === 'date') {
+                    out += `\n**📅 ${item.content}**\n\n`;
+                } else {
+                    out += `${item.content}\n`;
+                }
+            });
+            
+            out += `\n**🔼 Back to [top](#shortcuts--table-of-contents)** 🔼\n\n`;
+        });
+        
+        document.getElementById('exportOutput').value = out;
+        openModal('modalExport');
+    }
+
+    function createGroup() {
+        const val = document.getElementById('groupInput').value.trim();
+        if(val && !categories.includes(val)) { 
+            saveState(); 
+            categories.push(val); 
+            renderBoard(); 
+        }
+        closeModal('modalGroup');
+    }
+
+    function toggleSelect(id) { 
+        const item = items.find(i => i.id === id); 
+        item.selected = !item.selected; 
+        renderBoard(); 
+    }
+
+    document.getElementById('btnToggleSelect').onclick = () => {
+        isSelectMode = !isSelectMode;
+        document.getElementById('btnToggleSelect').innerText = isSelectMode ? 'Select Mode: On' : 'Select Mode: Off';
+        document.getElementById('btnToggleSelect').style.backgroundColor = isSelectMode ? '#10b981' : 'transparent';
+        document.getElementById('btnToggleSelect').style.color = isSelectMode ? 'white' : 'var(--primary)';
+        document.getElementById('bulkActions').classList.toggle('active', isSelectMode);
+        
+        if(!isSelectMode) items.forEach(i => i.selected = false);
+        renderBoard();
+    };
+
+    function moveSelectedCards() {
+        saveState();
+        const cat = document.getElementById('bulkCategorySelect').value;
+        items.forEach(i => { if(i.selected) { i.category = cat; i.selected = false; } });
+        
+        isSelectMode = false;
+        document.getElementById('btnToggleSelect').innerText = 'Select Mode: Off';
+        document.getElementById('btnToggleSelect').style.backgroundColor = 'transparent';
+        document.getElementById('btnToggleSelect').style.color = 'var(--primary)';
+        document.getElementById('bulkActions').classList.remove('active');
+        renderBoard();
+    }
+
+    function deleteSelectedCards() {
+        saveState();
+        items = items.filter(i => !i.selected);
+        
+        isSelectMode = false;
+        document.getElementById('btnToggleSelect').innerText = 'Select Mode: Off';
+        document.getElementById('btnToggleSelect').style.backgroundColor = 'transparent';
+        document.getElementById('btnToggleSelect').style.color = 'var(--primary)';
+        document.getElementById('bulkActions').classList.remove('active');
+        renderBoard();
+    }
+
+    function updateBulkDropdown() {
+        const sel = document.getElementById('bulkCategorySelect');
+        sel.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('');
+    }
+
+    function openModal(id) { document.getElementById(id).classList.add('active'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+    function copyExport() { document.getElementById('exportOutput').select(); document.execCommand('copy'); alert('Copied to clipboard!'); }
+
+    // Initialize Tool
+    loadFromLocalStorage();
+    renderBoard();
+</script>
+</body>
+</html>
